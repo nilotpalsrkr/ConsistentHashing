@@ -8,7 +8,7 @@ class VirtualNodeMap:
         self._vnode_map = {}
         self._node_names = node_names
         self._TOTAL_VIRTUAL_NODES = TOTAL_VIRTUAL_NODES
-
+        self._node_vnode_map = {}
     @property
     def vnode_map(self):
         return self._vnode_map
@@ -30,6 +30,10 @@ class VirtualNodeMap:
             for node in self._node_names:
                 t = t + 1
                 self._vnode_map[t] = node
+                if node not in self._node_vnode_map:
+                    self._node_vnode_map[node] = [t]
+                else:
+                    self._node_vnode_map[node].append(t)
 
 
     # Return the vnode name mapped to a particular vnode

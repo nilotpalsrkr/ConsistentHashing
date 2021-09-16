@@ -1,9 +1,7 @@
 import copy
-import random
 import math
 
 from VirtualNodeMap import VirtualNodeMap
-from src.User import UserData
 
 
 class Node:
@@ -63,7 +61,7 @@ class Node:
     # 'force' will be used during rebalancing in node addition/deletion
     # This is so that data can be saved first before vnode map update
     def set_data(self, key, value, force=False):
-        if (force):
+        if force:
             self._data_store[key] = copy.deepcopy(value)
         else:
 
@@ -74,7 +72,6 @@ class Node:
             node_name = self._vnode_map.get_assigned_node(key)
             node: Node = self._node_dict[node_name]
             node.set_data_store(key, value)
-            # self._data_store[key] = copy.deepcopy(value)
 
     def remove_data(self, key):
         return self._data_store.pop(key, 'Key not found')
@@ -112,17 +109,18 @@ class Node:
     # after all the relevant keys have been sent to the new owner
     def transfer_keys(self, transfer_dict):
         for vnode, transfer_data in transfer_dict.items():
-            target_node_name = transfer_data['target_node']
-            target_node = self._node_dict[target_node_name]
+            if len(transfer_data['keys']) > 0:
+                target_node_name = transfer_data['target_node']
+                target_node = self._node_dict[target_node_name]
 
-            # Transfer all keys for a vnode and remove them from the existing node
-            for key in transfer_data['keys']:
-                target_node.set_data(key, self._data_store[key], True)
-                entry = self.remove_data(key)
+                # Transfer all keys for a vnode and remove them from the existing node
+                for key in transfer_data['keys']:
+                    target_node.set_data(key, self._data_store[key], True)
+                    entry = self.remove_data(key)
 
-            # Update virtual node maps for everyone
-            for node in self._node_dict.values():
-                node.set_vnode_map_entry(vnode, target_node_name)
+                # Update virtual node maps for everyone
+                for node in self._node_dict.values():
+                    node.set_vnode_map_entry(vnode, target_node_name)
 
     # Called on each node when a new node is added
     # It selects a part of its vnode set to assign to the new node
@@ -133,44 +131,20 @@ class Node:
         self.add_node_to_mapping(new_node_name, new_node)
         current_node_count = prev_node_count + 1  # Assuming that add_new_node adds just 1 node at a time, we add 1
         # to the count
-        count_from_each_node_for_transit = round(self._TOTAL_VIRTUAL_NODES / prev_node_count) - round(
-            self._TOTAL_VIRTUAL_NODES / current_node_count)
-
-        # temp_node_transfer_key_list = {key: [] for key in self._node_dict.keys()}  # This stores each node and
-        # vnode list that needs to be transfered
-
-        #temp_node_transfer_key_count = {key: 0 for key in self._node_dict.keys()}
-        vnode_transfer_temp_count = 0
-        for vnode, node_name in self._vnode_map.vnode_map.items():
-            if vnode_transfer_temp_count <= count_from_each_node_for_transit\
-                    and self._name == node_name:
-                # temp_node_transfer_key_count[node_name] += 1
-                # temp_node_transfer_key_list[node_name].append(vnode)
-                local_vnode_list.append(vnode)
-
-                vnode_transfer_temp_count += 1
-        keys = []
-        for user_id, user_data in self._data_store.items():
-            hash = user_id % self._TOTAL_VIRTUAL_NODES
-            if hash in local_vnode_list:
-                keys.append(user_id)
-        transfer_dict = {
-            vnode: {
-                'target_node': new_node_name,
-                'keys': keys
-            }
-        }
 
         # Problem statement 3.a
         # Finds all vnodes mapped to this node and shuffles them
         # Implement this logic and store in local_vnode_list        
+        count_from_each_node_for_transit = math.ceil(self._TOTAL_VIRTUAL_NODES / prev_node_count) - math.ceil(
+            self._TOTAL_VIRTUAL_NODES / current_node_count)
 
+        vnode_transfer_temp_count = 0
+        for vnode, node_name in self._vnode_map.vnode_map.items():
+            if vnode_transfer_temp_count < count_from_each_node_for_transit \
+                    and self._name == node_name:
+                local_vnode_list.append(vnode)
+                vnode_transfer_temp_count += 1
         # Prepares to select proportional vnodes and their corresponding keys to transfer
-        #transfer_slice = round(len(local_vnode_list) / len(self._node_dict))
-        #transfer_slice = round(len(local_vnode_list) / prev_node_count)
-        #local_vnode_slice = local_vnode_list[0:transfer_slice]
-
-        #transfer_dict = {}
 
         # Problem statement 3.b
         # Loop over all keys and create the transfer dict structure
@@ -182,6 +156,12 @@ class Node:
         #               ...
         #                }
         # Here 23 and 96 are examples of vnode ids
+        # Initializing the transfer_dict with vnodes from local_node_list and keys as empty array.
+        transfer_dict = {vnode: {'target_node': new_node_name, 'keys': []} for vnode in local_vnode_list}
+        for user_id, user_data in self._data_store.items():
+            vnode = user_id % self._TOTAL_VIRTUAL_NODES
+            if vnode in local_vnode_list:
+                transfer_dict[vnode].get("keys").append(user_id)
 
         # Transfer the remapped keys to the new node
         self.transfer_keys(transfer_dict)
@@ -197,12 +177,14 @@ class Node:
         # Finds all vnodes mapped to this node and shuffles them
         # Implement this logic and store in local_vnode_list        
 
+        for vnode, node_name in self._vnode_map.vnode_map.items():
+            if node_name == self._name:
+                local_vnode_list.append(vnode)
+
         # Prepares to map all vnodes proportionally and their corresponding keys for transfer
         assigned_node_list = list(self._node_dict.keys()) * math.ceil(len(local_vnode_list) / len(self._node_dict))
         assigned_node_list = assigned_node_list[:len(local_vnode_list)]
         transfer_node_mapping = dict(zip(local_vnode_list, assigned_node_list))
-
-        transfer_dict = {}
 
         # Problem statement 4.b
         # Loop over all keys and create the transfer dict structure
@@ -212,7 +194,16 @@ class Node:
         #               96: {'target_node': <nodeB>, 'keys': [<user id list>]}
         #               ...
         #                }
-        # Here 23 and 96 are examples of vnode ids        
+        # Here 23 and 96 are examples of vnode ids
+        transfer_dict = {vnode: {'target_node': node, "keys": []} for vnode, node in transfer_node_mapping.items()}
+
+        # Iterating over the data on the current node(Node to be deleted) and finding out the
+        # node to get it transferred to from the transfer_dict already formed. Hence processing for the keys it stores.
+        for user_id, user_data in self._data_store.items():
+            vnode = user_id % self._TOTAL_VIRTUAL_NODES
+            temp_data = transfer_dict[vnode]
+            temp_data["keys"].append(user_id)
+            transfer_dict[vnode] = temp_data
 
         # Transfer the remapped keys to the extra nodes
         self.transfer_keys(transfer_dict)

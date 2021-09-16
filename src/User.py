@@ -1,4 +1,3 @@
-
 # Stores user metadata
 class UserData:
 
@@ -11,7 +10,8 @@ class UserData:
         self._password = password
 
     def __str__(self):
-        return(f'Email: {self._email}, Password: {self._password}')
+        return (f'Email: {self._email}, Password: {self._password}')
+
 
 # Stores user id and metadata class
 class UserInfo:
@@ -20,7 +20,7 @@ class UserInfo:
         self._user_data = user_data
 
     def __str__(self):
-        return(f'User ID: {self._user_id}, {self._user_data}')
+        return (f'User ID: {self._user_id}, {self._user_data}')
 
     @property
     def user_id(self):
